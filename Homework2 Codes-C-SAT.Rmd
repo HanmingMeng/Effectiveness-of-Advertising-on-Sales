@@ -1,0 +1,293 @@
+---
+title: "Homework 2 Codes"
+author: "Group C-SAT"
+date: "10/20/2021"
+output: html_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE, warning = FALSE, message = FALSE)
+#install.packages("readxl")
+#install.packages("psych")
+#install.packages("GGally")
+library(Hmisc)
+library(readxl)
+library(psych)
+library(GGally)
+```
+
+
+# Load the file
+```{r 1}
+rm(list = ls())
+file <- read_excel("HW2_MultimediaHW.xlsx")
+```
+
+
+# Data Description
+
+# How the data relate
+```{r corr matrix before transformation}
+cor(file[2:15])
+```
+
+
+# Data Description
+```{r 2 DD}
+describe(file)
+```
+# Explore variable correlation after sqrt tranformation
+```{r corr matrox sqrt}
+Sqcols = sqrt(file[3:15])
+Newfile = cbind(file[2], Sqcols)
+Hmisc::rcorr(as.matrix(Newfile))
+```
+## sqrt of ADV_online, Search, Portals are significantly correlates with dependent variable
+## Strong multi-colinearity between several pairs such as Sqrt(Search) and Sqrt(Portals )
+
+# Drop Banner and Social Media because all of values are zero
+
+# Drop these variables that are xtremely skewed after transformation(because of a lot of zero values)
+```{r}
+hist(sqrt(file$Catalogs_Winback))
+hist(sqrt(file$Catalogs_NewCust))
+hist(sqrt(file$Mailings))
+hist(sqrt(file$Retargeting))
+```
+
+
+#Get candidate variables
+```{r Candidate var}
+Sales = file$`Sales (units)`
+Stm1 = Lag(Sales,shift=1)
+
+SqADV_Total = sqrt(file$ADV_Total)
+SqADV_Offline = sqrt(file$ADV_Offline)
+
+SqCatEx = sqrt(file$Catalogs_ExistCust)
+
+
+SqADV_online = sqrt(file$ADV_online)
+
+SqSearch = sqrt(file$Search)
+
+SqNL = sqrt(file$Newsletter)
+
+SqPortals = sqrt(file$Portals)
+```
+## SqSearch SqPortals should only include one because of multicolinearity
+
+# Histogram of candidate variables
+```{r hist candidate vars sqrt}
+hist(SqADV_Total)
+
+hist(SqADV_Offline)
+hist(SqCatEx)
+
+hist(SqADV_online)
+hist(SqSearch)
+hist(SqPortals)
+hist(SqNL)
+```
+
+
+
+# Main Model 1
+```{r m1}
+regmodm1<-lm(Sales~Stm1+SqADV_Total)
+# test normality of residuals
+res1 = resid(regmodm1)
+hist(res1)
+nortest::ad.test(res1)
+```
+
+```{r m1 result}
+summary(regmodm1)
+AIC(regmodm1)
+BIC(regmodm1)
+```
+# Main Model 2
+```{r m2}
+regmodm2<-lm(Sales~Stm1+SqADV_Offline+SqADV_online)
+res2 = resid(regmodm2)
+hist(res2)
+nortest::ad.test(res2)
+```
+
+```{r m2 result}
+summary(regmodm2)
+AIC(regmodm2)
+BIC(regmodm2)
+```
+
+
+
+# Main Model 3
+```{r m3 Search}
+#Try Search
+regmodS<-lm(Sales~Stm1+SqCatEx+SqSearch+SqNL)
+summary(regmodS)
+AIC(regmodS)
+BIC(regmodS)
+```
+
+```{r m3 Portal}
+#Try Portal
+regmodP<-lm(Sales~Stm1+SqCatEx+SqPortals+SqNL)
+summary(regmodP)
+AIC(regmodP)
+BIC(regmodP)
+```
+
+```{r m3 Combine}
+SqCom = sqrt(file$Search+file$Portals)
+regmodC<-lm(Sales~Stm1+SqCatEx+SqCom+SqNL)
+summary(regmodC)
+AIC(regmodC)
+BIC(regmodC)
+```
+
+## Finally we choose Portal because it is the best(lowest AIC BIC)
+```{r m3 Final}
+regmodm3<-lm(Sales~Stm1+SqCatEx+SqPortals+SqNL)
+summary(regmodm3)
+AIC(regmodm3)
+BIC(regmodm3)
+```
+
+```{r m3 test}
+res3 = resid(regmodm3)
+hist(res3)
+nortest::ad.test(res3)
+```
+
+
+# Explore better model
+
+## Log model provides better fit(higher r2 and adj-r2)
+```{r m5 new}
+LogADV_Total = log(file$ADV_Total+1)
+
+LogADV_Offline = log(file$ADV_Offline+1)
+LogCatEx = log(file$Catalogs_ExistCust+1)
+
+LogADV_online = log(file$ADV_online+1)
+LogSearch = log(file$Search+1)
+LogPortals = log(file$Portals+1)  
+LogNL = log(file$Newsletter+1)
+
+regmodlog<-lm(Sales~Stm1+LogCatEx+LogPortals+LogNL)
+summary(regmodlog)
+AIC(regmodlog)
+BIC(regmodlog)
+```
+
+# Without Lagging effect is a worse fit (higher AIC and BIC)
+```{r no lagging}
+regmodnl<-lm(Sales~SqCatEx+SqPortals+SqNL)
+summary(regmodnl)
+AIC(regmodnl)
+BIC(regmodnl)
+```
+
+# Without intercept is a worse fit (higher AIC and BIC)
+```{r withou intercept}
+regmodni<-lm(Sales~Stm1+SqCatEx+SqPortals+SqNL-1)
+summary(regmodni)
+AIC(regmodni)
+BIC(regmodni)
+```
+## R2 and Adj-R2 is so much higher, but AIC/BIC is higher as well.
+## This means better explanatory ability but poorer predicability
+## R2 always get approx 0.9 when taking intercept
+
+# Explore synergy 
+# Try sqrt model with synergy
+```{r sqrt syn}
+regmodss<-lm(Sales~Stm1+Sq+SqPortals+SqNL+SqCatEx*SqPortals+SqCatEx*SqNL)
+summary(regmodss)
+AIC(regmodss)
+BIC(regmodss)
+```
+This model make most sense the
+
+# Try AGG sqrt model with synergy
+```{r sqrt syn}
+regmodss<-lm(Sales~Stm1+SqADV_Offline+SqADV_online+SqADV_Offline*SqADV_online)
+summary(regmodss)
+AIC(regmodss)
+BIC(regmodss)
+```
+# Try log model with synergy
+```{r log syn}
+regmodls<-lm(Sales~Stm1+LogCatEx+LogPortals+LogNL+LogCatEx*LogPortals+LogCatEx*LogNL)
+summary(regmodls)
+AIC(regmodls)
+BIC(regmodls)
+```
+
+# Try log model with synergy
+```{r log syn}
+LogCatWB = log(file$Catalogs_Winback+1)
+regmodls<-lm(Sales~Stm1+LogCatEx+LogCatWB+LogPortals+LogNL+LogCatEx*LogPortals+LogCatEx*LogNL+LogCatWB*LogPortals+LogCatWB*LogNL)
+summary(regmodls)
+AIC(regmodls)
+BIC(regmodls)
+```
+
+# Try AGG log model without intercept and with synergy
+```{r agg l ni s}
+regmod<-lm(Sales~Stm1+LogADV_Offline+LogADV_online+LogADV_Offline*LogADV_online-1)
+summary(regmod)
+AIC(regmod)
+BIC(regmod)
+```
+
+# Try AGG sqrt model without intercept and with synergy
+```{r agg sqrt without intercept and with synergy}
+regmod<-lm(Sales~Stm1+SqADV_Offline+SqADV_online+SqADV_Offline*SqADV_online-1)
+summary(regmod)
+AIC(regmod)
+BIC(regmod)
+```
+
+# Try log model with synergy without intercept
+```{r log syn ni}
+regmodls<-lm(Sales~Stm1+LogCatEx+LogPortals+LogNL+LogCatEx*LogPortals+LogCatEx*LogNL-1)
+summary(regmodls)
+AIC(regmodls)
+BIC(regmodls)
+```
+
+# Try sqrt model with synergy without intercept
+```{r sqrt syn ni}
+regmodss<-lm(Sales~Stm1+SqCatEx+SqPortals+SqNL+SqCatEx*SqPortals+SqCatEx*SqNL-1)
+summary(regmodss)
+AIC(regmodss)
+BIC(regmodss)
+```
+
+# Try part log model with synergy 
+```{r sqrt syn ni}
+ADV_Total = file$ADV_Total
+ADV_Offline = file$ADV_Offline
+CatEx = file$Catalogs_ExistCust
+
+ADV_online = file$ADV_online
+NL = file$Newsletter
+Portals = file$Portals
+
+Search = file$Search
+
+
+plot(Sales~CatEx)
+plot(Sales~LogNL)
+plot(Sales~Portals)
+```
+
+```{r sqrt syn ni}
+regmodss<-lm(Sales~Stm1+CatEx+Portals+LogNL+CatEx*Portals+CatEx*LogNL)
+summary(regmodss)
+AIC(regmodss)
+BIC(regmodss)
+```
